@@ -4,88 +4,136 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DataLab — Auto Chart Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
 </head>
 <body>
 
-  <!-- Header -->
-  <header class="header">
-    <div class="logo">
-      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-        <rect width="28" height="28" rx="8" fill="#6366f1"/>
-        <path d="M7 20L11 13L15 17L19 8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="19" cy="8" r="2" fill="#f472b6"/>
-      </svg>
-      <span class="logo-text">DataLab</span>
-    </div>
-    <p class="tagline">Upload a dataset. Get instant charts.</p>
-  </header>
+  <!-- Background -->
+  <div class="bg-canvas" aria-hidden="true">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+    <div class="blob blob-4"></div>
+  </div>
 
-  <main class="container">
+  <div class="page-wrapper">
 
-    <!-- Upload Zone -->
-    <section class="upload-section" id="uploadSection">
-      <div class="drop-zone" id="dropZone">
-        <div class="drop-icon">
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="24" fill="rgba(99,102,241,0.12)"/>
-            <path d="M24 32V20M24 20L19 25M24 20L29 25" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M16 34h16" stroke="#6366f1" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
-          </svg>
+    <!-- Header -->
+    <header class="header">
+      <div class="container">
+        <div class="header-inner">
+          <a class="logo" href="/">
+            <div class="logo-mark">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M3 12L5.5 7.5L8 10L11 4" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="11" cy="4" r="1.5" fill="#f472b6"/>
+              </svg>
+            </div>
+            <span class="logo-text">DataLab</span>
+          </a>
+          <div class="header-divider"></div>
+          <span class="tagline">Upload a dataset. Get instant charts.</span>
+          <span class="header-badge">v1.0</span>
         </div>
-        <p class="drop-title">Drop your dataset here</p>
-        <p class="drop-sub">CSV or Excel &nbsp;·&nbsp; up to 50MB</p>
-        <label class="btn-upload">
-          Browse file
-          <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" hidden />
-        </label>
       </div>
-      <div class="error-msg" id="errorMsg"></div>
-    </section>
+    </header>
 
-    <!-- Loading -->
-    <div class="loading hidden" id="loading">
-      <div class="spinner"></div>
-      <p>Analyzing your dataset&hellip;</p>
-    </div>
+    <!-- Main -->
+    <main class="main-content">
+      <div class="container">
 
-    <!-- Results -->
-    <div class="results hidden" id="results">
+        <!-- Hero -->
+        <section class="hero fade-up">
+          <div class="hero-label">
+            <span class="hero-label-dot"></span>
+            Auto Chart Generator
+          </div>
+          <h1 class="hero-title">
+            Drop your data.<br />
+            <span>See it instantly.</span>
+          </h1>
+          <p class="hero-sub">Upload a CSV or Excel file and get a correlation matrix, distributions, and trend charts in seconds.</p>
+        </section>
 
-      <!-- Dataset Summary -->
-      <section class="card summary-card">
-        <h2 class="section-title">Dataset Overview</h2>
-        <div class="stat-row" id="statRow"></div>
-        <div class="table-wrap" id="previewTable"></div>
-      </section>
+        <!-- Upload -->
+        <section class="upload-section fade-up" id="uploadSection" style="transition-delay: 80ms">
+          <div class="drop-zone" id="dropZone">
+            <div class="drop-icon-wrap">
+              <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+                <path d="M13 18V8M13 8L8.5 12.5M13 8L17.5 12.5" stroke="#5E6AD2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M5 20h16" stroke="#5E6AD2" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+              </svg>
+            </div>
+            <p class="drop-title">Drop your dataset here</p>
+            <p class="drop-sub">CSV or Excel &nbsp;&middot;&nbsp; up to 50 MB</p>
+            <label class="btn-upload">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M7 1v8M7 1L4 4M7 1l3 3" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M1 11v1a1 1 0 001 1h10a1 1 0 001-1v-1" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              Browse file
+              <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" hidden />
+            </label>
+          </div>
+          <p class="error-msg" id="errorMsg" role="alert"></p>
+        </section>
 
-      <!-- Tabs -->
-      <div class="tabs">
-        <button class="tab active" data-tab="correlation">Correlation</button>
-        <button class="tab" data-tab="distributions">Distributions</button>
-        <button class="tab" data-tab="trends">Trends</button>
+        <!-- Loading -->
+        <div class="loading hidden" id="loading" aria-live="polite">
+          <div class="spinner"></div>
+          <p>Analyzing your dataset&hellip;</p>
+        </div>
+
+        <!-- Results -->
+        <div class="results hidden" id="results">
+
+          <!-- Overview card -->
+          <div class="card fade-up" id="overviewCard" style="margin-bottom: 20px;">
+            <div class="spotlight" id="overviewSpotlight"></div>
+            <div class="card-body">
+              <h2 class="section-title">
+                <span class="section-title-bar"></span>
+                Dataset Overview
+              </h2>
+              <div class="stat-row" id="statRow"></div>
+              <div class="table-wrap" id="previewTable"></div>
+            </div>
+          </div>
+
+          <!-- Tabs -->
+          <div class="tabs fade-up" style="transition-delay: 40ms">
+            <button class="tab active" data-tab="correlation">Correlation</button>
+            <button class="tab" data-tab="distributions">Distributions</button>
+            <button class="tab" data-tab="trends">Trends</button>
+          </div>
+
+          <!-- Tab panels -->
+          <div class="tab-panel active" id="tab-correlation">
+            <div class="chart-card fade-up" id="chart-correlation"></div>
+          </div>
+
+          <div class="tab-panel" id="tab-distributions">
+            <div class="grid-2" id="chart-distributions"></div>
+          </div>
+
+          <div class="tab-panel" id="tab-trends">
+            <div class="grid-2" id="chart-trends"></div>
+          </div>
+
+        </div><!-- /results -->
       </div>
+    </main>
 
-      <!-- Tab Panels -->
-      <div class="tab-panel active" id="tab-correlation">
-        <div class="card chart-card" id="chart-correlation"></div>
-      </div>
+    <!-- Footer -->
+    <footer class="footer">
+      Built with <span>Flask</span> &amp; <span>Plotly</span> &nbsp;&middot;&nbsp; DataLab
+    </footer>
 
-      <div class="tab-panel" id="tab-distributions">
-        <div class="grid-2" id="chart-distributions"></div>
-      </div>
-
-      <div class="tab-panel" id="tab-trends">
-        <div class="grid-2" id="chart-trends"></div>
-      </div>
-
-    </div>
-  </main>
-
-  <footer class="footer">
-    Built with Flask &amp; Plotly &nbsp;·&nbsp; DataLab
-  </footer>
+  </div><!-- /page-wrapper -->
 
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
