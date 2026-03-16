@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DataLab — Auto Chart Generator</title>
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="logo">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <rect width="28" height="28" rx="8" fill="#6366f1"/>
+        <path d="M7 20L11 13L15 17L19 8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="19" cy="8" r="2" fill="#f472b6"/>
+      </svg>
+      <span class="logo-text">DataLab</span>
+    </div>
+    <p class="tagline">Upload a dataset. Get instant charts.</p>
+  </header>
+
+  <main class="container">
+
+    <!-- Upload Zone -->
+    <section class="upload-section" id="uploadSection">
+      <div class="drop-zone" id="dropZone">
+        <div class="drop-icon">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="24" fill="rgba(99,102,241,0.12)"/>
+            <path d="M24 32V20M24 20L19 25M24 20L29 25" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M16 34h16" stroke="#6366f1" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+          </svg>
+        </div>
+        <p class="drop-title">Drop your dataset here</p>
+        <p class="drop-sub">CSV or Excel &nbsp;·&nbsp; up to 50MB</p>
+        <label class="btn-upload">
+          Browse file
+          <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" hidden />
+        </label>
+      </div>
+      <div class="error-msg" id="errorMsg"></div>
+    </section>
+
+    <!-- Loading -->
+    <div class="loading hidden" id="loading">
+      <div class="spinner"></div>
+      <p>Analyzing your dataset&hellip;</p>
+    </div>
+
+    <!-- Results -->
+    <div class="results hidden" id="results">
+
+      <!-- Dataset Summary -->
+      <section class="card summary-card">
+        <h2 class="section-title">Dataset Overview</h2>
+        <div class="stat-row" id="statRow"></div>
+        <div class="table-wrap" id="previewTable"></div>
+      </section>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active" data-tab="correlation">Correlation</button>
+        <button class="tab" data-tab="distributions">Distributions</button>
+        <button class="tab" data-tab="trends">Trends</button>
+      </div>
+
+      <!-- Tab Panels -->
+      <div class="tab-panel active" id="tab-correlation">
+        <div class="card chart-card" id="chart-correlation"></div>
+      </div>
+
+      <div class="tab-panel" id="tab-distributions">
+        <div class="grid-2" id="chart-distributions"></div>
+      </div>
+
+      <div class="tab-panel" id="tab-trends">
+        <div class="grid-2" id="chart-trends"></div>
+      </div>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    Built with Flask &amp; Plotly &nbsp;·&nbsp; DataLab
+  </footer>
+
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
