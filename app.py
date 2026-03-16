@@ -40,20 +40,22 @@ def generate_charts(df):
     # --- Correlation Matrix ---
     if len(numeric_cols) >= 2:
         corr = df[numeric_cols].corr().round(2)
+        z    = corr.values.tolist()          # plain Python lists
+        text = corr.round(2).values.tolist()
+        cols = corr.columns.tolist()
         fig = go.Figure(go.Heatmap(
-            z=corr.values,
-            x=corr.columns.tolist(),
-            y=corr.columns.tolist(),
+            z=z,
+            x=cols,
+            y=cols,
             colorscale='RdBu_r',
             zmid=0,
-            text=corr.values,
+            text=text,
             texttemplate='%{text}',
             textfont={"size": 11},
             hoverongaps=False,
         ))
         fig.update_layout(
             title=dict(text='Correlation Matrix', font=dict(size=18)),
-            template='plotly_dark',
             height=520,
             margin=dict(l=20, r=20, t=60, b=20),
             paper_bgcolor='rgba(0,0,0,0)',
@@ -62,29 +64,33 @@ def generate_charts(df):
         charts['correlation'] = json.loads(json.dumps(fig, cls=PlotlyJSONEncoder))
 
     # --- Distributions ---
+    # Pre-compute bins in Python → use go.Bar so the data is fully baked into the JSON.
+    # This avoids client-side histogram computation mismatches between plotly-python and plotly.js.
     dist_charts = []
     for col in numeric_cols[:10]:
-        data = df[col].dropna()
+        data = df[col].dropna().values.astype(float)
+        counts, bin_edges = np.histogram(data, bins=30)
+        bin_centers = ((bin_edges[:-1] + bin_edges[1:]) / 2).round(4)
+        bin_width    = float(bin_edges[1] - bin_edges[0])
+
         fig = go.Figure()
-        fig.add_trace(go.Histogram(
-            x=data,
-            nbinsx=30,
+        fig.add_trace(go.Bar(
+            x=bin_centers.tolist(),
+            y=counts.tolist(),
+            width=bin_width * 0.85,
             marker=dict(color='#6366f1', opacity=0.85, line=dict(color='#4f46e5', width=1)),
             name=col,
         ))
-        # Overlay KDE-like curve using numpy
-        hist_vals, bin_edges = np.histogram(data, bins=30)
-        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
         fig.update_layout(
             title=dict(text=f'Distribution: {col}', font=dict(size=16)),
             xaxis_title=col,
-            yaxis_title='Count',
-            template='plotly_dark',
+            yaxis=dict(title='Count', rangemode='tozero'),
             height=320,
             margin=dict(l=20, r=20, t=50, b=40),
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)',
             showlegend=False,
+            bargap=0,
         )
         dist_charts.append(json.loads(json.dumps(fig, cls=PlotlyJSONEncoder)))
     charts['distributions'] = dist_charts
@@ -92,23 +98,27 @@ def generate_charts(df):
     # --- Trends ---
     trend_charts = []
     if datetime_cols and numeric_cols:
-        dt_col = datetime_cols[0]
+        dt_col    = datetime_cols[0]
         df_sorted = df.sort_values(dt_col)
+        # Convert datetime to ISO strings so JSON serialization is unambiguous
+        x_dates = df_sorted[dt_col].dt.strftime('%Y-%m-%d').tolist()
         for col in numeric_cols[:5]:
+            y_vals = df_sorted[col].tolist()
+            roll   = df_sorted[col].rolling(window=max(3, len(df_sorted) // 20)).mean()
+            y_roll = roll.fillna('null').tolist()
+
             fig = go.Figure()
             fig.add_trace(go.Scatter(
-                x=df_sorted[dt_col],
-                y=df_sorted[col],
+                x=x_dates,
+                y=y_vals,
                 mode='lines+markers',
                 line=dict(color='#a78bfa', width=2),
                 marker=dict(size=4, color='#7c3aed'),
                 name=col,
             ))
-            # Rolling average
-            roll = df_sorted[col].rolling(window=max(3, len(df_sorted) // 20)).mean()
             fig.add_trace(go.Scatter(
-                x=df_sorted[dt_col],
-                y=roll,
+                x=x_dates,
+                y=y_roll,
                 mode='lines',
                 line=dict(color='#f472b6', width=2, dash='dash'),
                 name=f'{col} (trend)',
@@ -117,7 +127,7 @@ def generate_charts(df):
                 title=dict(text=f'{col} Over Time', font=dict(size=16)),
                 xaxis_title=dt_col,
                 yaxis_title=col,
-                template='plotly_dark',
+                template=None,
                 height=340,
                 margin=dict(l=20, r=20, t=50, b=40),
                 paper_bgcolor='rgba(0,0,0,0)',
@@ -127,22 +137,24 @@ def generate_charts(df):
     elif len(numeric_cols) >= 2:
         x_col = numeric_cols[0]
         for col in numeric_cols[1:5]:
+            mask  = df[[x_col, col]].dropna()
+            x_raw = mask[x_col].tolist()
+            y_raw = mask[col].tolist()
+
             fig = go.Figure()
             fig.add_trace(go.Scatter(
-                x=df[x_col],
-                y=df[col],
+                x=x_raw,
+                y=y_raw,
                 mode='markers',
                 marker=dict(color='#a78bfa', size=6, opacity=0.7),
                 name=col,
             ))
-            # Linear trend line
-            mask = df[[x_col, col]].dropna()
             if len(mask) > 1:
-                m, b = np.polyfit(mask[x_col], mask[col], 1)
+                m, b    = np.polyfit(mask[x_col].values, mask[col].values, 1)
                 x_range = np.linspace(mask[x_col].min(), mask[x_col].max(), 100)
                 fig.add_trace(go.Scatter(
-                    x=x_range,
-                    y=m * x_range + b,
+                    x=x_range.tolist(),
+                    y=(m * x_range + b).tolist(),
                     mode='lines',
                     line=dict(color='#f472b6', width=2, dash='dash'),
                     name='trend',
@@ -151,7 +163,7 @@ def generate_charts(df):
                 title=dict(text=f'{col} vs {x_col}', font=dict(size=16)),
                 xaxis_title=x_col,
                 yaxis_title=col,
-                template='plotly_dark',
+                template=None,
                 height=340,
                 margin=dict(l=20, r=20, t=50, b=40),
                 paper_bgcolor='rgba(0,0,0,0)',

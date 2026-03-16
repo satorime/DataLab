@@ -83,9 +83,31 @@
         </section>
 
         <!-- Loading -->
-        <div class="loading hidden" id="loading" aria-live="polite">
-          <div class="spinner"></div>
-          <p>Analyzing your dataset&hellip;</p>
+        <div class="loading hidden" id="loading" aria-live="polite" aria-label="Processing dataset">
+          <div class="loading-inner">
+            <div class="loading-ring">
+              <svg viewBox="0 0 64 64" fill="none" width="64" height="64">
+                <circle cx="32" cy="32" r="26" stroke="rgba(94,106,210,0.12)" stroke-width="4"/>
+                <circle cx="32" cy="32" r="26" stroke="#5E6AD2" stroke-width="4"
+                  stroke-linecap="round" stroke-dasharray="60 103" class="loading-arc"/>
+              </svg>
+              <div class="loading-icon">
+                <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                  <path d="M11 15V6M11 6L7 10M11 6l4 4" stroke="#5E6AD2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M4 17h14" stroke="#5E6AD2" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+                </svg>
+              </div>
+            </div>
+            <p class="loading-title">Processing your dataset</p>
+            <p class="loading-sub" id="loadingStep">Uploading file&hellip;</p>
+            <div class="loading-steps">
+              <span class="lstep active" id="lstep-upload">Upload</span>
+              <span class="lstep-arrow">›</span>
+              <span class="lstep" id="lstep-parse">Parse</span>
+              <span class="lstep-arrow">›</span>
+              <span class="lstep" id="lstep-charts">Generate charts</span>
+            </div>
+          </div>
         </div>
 
         <!-- Results -->

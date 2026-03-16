@@ -378,21 +378,101 @@ body {
 /* ── Loading ── */
 .loading {
   display: flex;
+  justify-content: center;
+  padding: 48px 24px;
+}
+.loading-inner {
+  display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
-  padding: 72px;
-  color: var(--fg-muted);
-  font-size: 0.875rem;
+  gap: 16px;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-lg);
+  padding: 40px 48px;
+  box-shadow: var(--shadow-card), 0 0 60px rgba(94,106,210,0.08);
+  min-width: 300px;
+  text-align: center;
+  position: relative;
 }
-.spinner {
-  width: 36px; height: 36px;
-  border: 2px solid rgba(94,106,210,0.2);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.75s linear infinite;
+.loading-inner::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(94,106,210,0.5), transparent);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+/* Spinning ring */
+.loading-ring {
+  position: relative;
+  width: 64px; height: 64px;
+}
+.loading-arc {
+  transform-origin: center;
+  animation: spin 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Icon centered inside ring */
+.loading-icon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: iconPulse 1.1s ease-in-out infinite;
+}
+@keyframes iconPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+.loading-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+}
+.loading-sub {
+  font-size: 0.8rem;
+  color: var(--accent);
+  min-height: 18px;
+  transition: opacity 200ms;
+}
+
+/* Step indicators */
+.loading-steps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.lstep {
+  font-size: 0.72rem;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  letter-spacing: 0.03em;
+  color: var(--fg-muted);
+  padding: 3px 10px;
+  border-radius: 50px;
+  border: 1px solid var(--border);
+  transition: color 300ms, border-color 300ms, background 300ms;
+}
+.lstep.active {
+  color: var(--accent);
+  border-color: var(--border-accent);
+  background: rgba(94,106,210,0.08);
+}
+.lstep.done {
+  color: #34d399;
+  border-color: rgba(52,211,153,0.3);
+  background: rgba(52,211,153,0.06);
+}
+.lstep-arrow {
+  color: var(--border-hover);
+  font-size: 0.85rem;
+}
 
 /* ── Section heading ── */
 .section-title {
@@ -531,23 +611,42 @@ tbody tr:hover td { color: var(--fg); }
   gap: 16px;
 }
 .chart-item {
+  position: relative;                /* stacking context for spotlight */
   background: linear-gradient(to bottom, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 16px;
   box-shadow: var(--shadow-card);
   transition: border-color 300ms var(--ease-expo), box-shadow 300ms var(--ease-expo);
+  /* NO overflow:hidden — that clips Plotly modebar & tooltips */
 }
 .chart-item:hover {
   border-color: var(--border-hover);
   box-shadow: var(--shadow-hover);
 }
+/* Spotlight overlay inside chart items */
+.chart-spotlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 300ms var(--ease-expo);
+  border-radius: var(--radius-lg);
+  z-index: 0;
+}
+/* Plotly renders into this — sits above spotlight */
+.chart-plot {
+  position: relative;
+  z-index: 1;
+}
 .chart-card {
+  position: relative;
   background: linear-gradient(to bottom, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 20px;
   box-shadow: var(--shadow-card);
+  min-height: 200px;
 }
 
 /* ── Empty state ── */

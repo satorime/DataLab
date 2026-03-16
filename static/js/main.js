@@ -1,28 +1,22 @@
 // ── Entrance animations (IntersectionObserver) ──
 const observer = new IntersectionObserver(
   entries => entries.forEach(el => {
-    if (el.isIntersecting) {
-      el.target.classList.add('visible');
-      observer.unobserve(el.target);
-    }
+    if (el.isIntersecting) { el.target.classList.add('visible'); observer.unobserve(el.target); }
   }),
-  { threshold: 0.1 }
+  { threshold: 0.08 }
 );
 document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
 
-// ── Mouse spotlight on cards ──
-function initSpotlight(card, spotlightEl) {
-  card.addEventListener('mousemove', e => {
-    const rect = card.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    spotlightEl.style.background =
-      `radial-gradient(300px circle at ${x}px ${y}px, rgba(94,106,210,0.10), transparent 70%)`;
+// ── Mouse spotlight on overview card ──
+const overviewCard      = document.getElementById('overviewCard');
+const overviewSpotlight = document.getElementById('overviewSpotlight');
+if (overviewCard && overviewSpotlight) {
+  overviewCard.addEventListener('mousemove', e => {
+    const r = overviewCard.getBoundingClientRect();
+    overviewSpotlight.style.background =
+      `radial-gradient(300px circle at ${e.clientX - r.left}px ${e.clientY - r.top}px, rgba(94,106,210,0.10), transparent 70%)`;
   });
 }
-const overviewCard = document.getElementById('overviewCard');
-const overviewSpotlight = document.getElementById('overviewSpotlight');
-if (overviewCard && overviewSpotlight) initSpotlight(overviewCard, overviewSpotlight);
 
 // ── DOM refs ──
 const dropZone  = document.getElementById('dropZone');
@@ -30,6 +24,10 @@ const fileInput = document.getElementById('fileInput');
 const errorMsg  = document.getElementById('errorMsg');
 const loading   = document.getElementById('loading');
 const results   = document.getElementById('results');
+
+// ── Stored chart data (for lazy tab rendering) ──
+let chartsData   = null;
+const tabRendered = { correlation: false, distributions: false, trends: false };
 
 // ── Drag & drop ──
 ['dragenter', 'dragover'].forEach(ev =>
@@ -50,22 +48,51 @@ fileInput.addEventListener('change', () => {
 async function processFile(file) {
   setError('');
   showLoading(true);
+  setStep('upload');
+  Object.keys(tabRendered).forEach(k => tabRendered[k] = false);
 
   const formData = new FormData();
   formData.append('file', file);
 
   try {
+    setStep('parse');
     const res  = await fetch('/upload', { method: 'POST', body: formData });
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.error || 'Upload failed');
 
+    setStep('charts');
+    chartsData = data.charts;
     renderSummary(data.summary);
-    renderCharts(data.charts);
+    switchTab('correlation');
     showResults();
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => renderTab('correlation'));
+    });
   } catch (err) {
     setError(err.message);
     showLoading(false);
   }
+}
+
+// ── Step indicator ──
+const stepMeta = {
+  upload: { id: 'lstep-upload', sub: 'Uploading file\u2026' },
+  parse:  { id: 'lstep-parse',  sub: 'Parsing dataset\u2026' },
+  charts: { id: 'lstep-charts', sub: 'Generating charts\u2026' },
+};
+function setStep(name) {
+  const order = ['upload', 'parse', 'charts'];
+  const idx   = order.indexOf(name);
+  order.forEach((s, i) => {
+    const el = document.getElementById(stepMeta[s].id);
+    if (!el) return;
+    el.classList.remove('active', 'done');
+    if (i < idx)  el.classList.add('done');
+    if (i === idx) el.classList.add('active');
+  });
+  const subEl = document.getElementById('loadingStep');
+  if (subEl) subEl.textContent = stepMeta[name].sub;
 }
 
 // ── Render Summary ──
@@ -82,16 +109,16 @@ function renderSummary(s) {
   `;
 
   if (!s.preview?.length) return;
-  const cols = Object.keys(s.preview[0]);
+  const cols   = Object.keys(s.preview[0]);
   const header = cols.map(c => `<th>${esc(c)}</th>`).join('');
-  const rows = s.preview.map(row =>
+  const rows   = s.preview.map(row =>
     `<tr>${cols.map(c => `<td>${esc(String(row[c] ?? ''))}</td>`).join('')}</tr>`
   ).join('');
   document.getElementById('previewTable').innerHTML =
     `<table><thead><tr>${header}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-// ── Render Charts ──
+// ── Plotly config & layout helpers ──
 const plotCfg = {
   responsive: true,
   displayModeBar: true,
@@ -100,97 +127,135 @@ const plotCfg = {
   toImageButtonOptions: { format: 'png', scale: 2 },
 };
 
-// Shared dark layout overrides injected into every chart
-const darkLayout = {
-  paper_bgcolor: 'rgba(0,0,0,0)',
-  plot_bgcolor:  'rgba(0,0,0,0)',
-  font: { family: 'Inter, system-ui, sans-serif', color: '#8A8F98' },
-  xaxis: { gridcolor: 'rgba(255,255,255,0.05)', linecolor: 'rgba(255,255,255,0.06)', tickfont: { color: '#8A8F98' } },
-  yaxis: { gridcolor: 'rgba(255,255,255,0.05)', linecolor: 'rgba(255,255,255,0.06)', tickfont: { color: '#8A8F98' } },
-  title: { font: { color: '#EDEDEF', size: 14, family: 'Inter, system-ui, sans-serif' } },
-};
-
 function mergeLayout(layout) {
-  return {
-    ...layout,
-    ...darkLayout,
-    font: darkLayout.font,
-    xaxis: { ...layout.xaxis, ...darkLayout.xaxis },
-    yaxis: { ...layout.yaxis, ...darkLayout.yaxis },
-    title: { ...(typeof layout.title === 'string' ? { text: layout.title } : layout.title), ...darkLayout.title },
+  // Deep-merge only the visual/theme properties — never overwrite height/margin/showlegend
+  const merged = { ...layout };
+  merged.paper_bgcolor = 'rgba(0,0,0,0)';
+  merged.plot_bgcolor  = 'rgba(0,0,0,0)';
+  merged.font          = { family: 'Inter, system-ui, sans-serif', color: '#8A8F98', ...(layout.font || {}) };
+
+  merged.xaxis = {
+    gridcolor: 'rgba(255,255,255,0.05)',
+    linecolor: 'rgba(255,255,255,0.06)',
+    zerolinecolor: 'rgba(255,255,255,0.06)',
+    tickfont: { color: '#8A8F98' },
+    ...(layout.xaxis || {}),
   };
+  merged.yaxis = {
+    gridcolor: 'rgba(255,255,255,0.05)',
+    linecolor: 'rgba(255,255,255,0.06)',
+    zerolinecolor: 'rgba(255,255,255,0.06)',
+    tickfont: { color: '#8A8F98' },
+    ...(layout.yaxis || {}),
+  };
+
+  const titleSrc = typeof layout.title === 'string' ? { text: layout.title } : (layout.title || {});
+  merged.title = { ...titleSrc, font: { color: '#EDEDEF', size: 14, family: 'Inter, system-ui, sans-serif' } };
+
+  // Remove template so our explicit colors take full effect
+  delete merged.template;
+
+  return merged;
 }
 
-function renderCharts(charts) {
-  // Correlation
-  const corrEl = document.getElementById('chart-correlation');
-  if (charts.correlation) {
-    corrEl.innerHTML = '';
-    Plotly.newPlot(corrEl, charts.correlation.data, mergeLayout(charts.correlation.layout), plotCfg);
-  } else {
-    corrEl.innerHTML = emptyState('Need at least 2 numeric columns for a correlation matrix.');
+// ── Tab rendering (lazy — only render when tab is first shown) ──
+function renderTab(name) {
+  if (!chartsData || tabRendered[name]) return;
+  tabRendered[name] = true;
+
+  if (name === 'correlation') {
+    const el = document.getElementById('chart-correlation');
+    el.innerHTML = '';
+    // Ensure element is visible before Plotly measures it
+    el.classList.add('visible');
+    if (chartsData.correlation) {
+      Plotly.newPlot(el, chartsData.correlation.data, mergeLayout(chartsData.correlation.layout), plotCfg);
+    } else {
+      el.innerHTML = emptyState('Need at least 2 numeric columns for a correlation matrix.');
+    }
   }
 
-  // Distributions
-  const distEl = document.getElementById('chart-distributions');
-  distEl.innerHTML = '';
-  if (charts.distributions?.length) {
-    charts.distributions.forEach((ch, i) => {
-      const wrap = makeChartItem();
-      distEl.appendChild(wrap);
-      // Staggered entrance
-      setTimeout(() => wrap.classList.add('visible'), 60 * i);
-      Plotly.newPlot(wrap, ch.data, mergeLayout(ch.layout), plotCfg);
-      addChartSpotlight(wrap);
-    });
-  } else {
-    distEl.innerHTML = emptyState('No numeric columns found for distributions.');
+  if (name === 'distributions') {
+    const container = document.getElementById('chart-distributions');
+    container.innerHTML = '';
+    if (chartsData.distributions?.length) {
+      chartsData.distributions.forEach(ch => {
+        const wrap = makeChartWrap();
+        container.appendChild(wrap);
+        Plotly.newPlot(wrap.querySelector('.chart-plot'), ch.data, mergeLayout(ch.layout), plotCfg);
+        addSpotlight(wrap);
+      });
+    } else {
+      container.innerHTML = emptyState('No numeric columns found for distributions.');
+    }
   }
 
-  // Trends
-  const trendEl = document.getElementById('chart-trends');
-  trendEl.innerHTML = '';
-  if (charts.trends?.length) {
-    charts.trends.forEach((ch, i) => {
-      const wrap = makeChartItem();
-      trendEl.appendChild(wrap);
-      setTimeout(() => wrap.classList.add('visible'), 60 * i);
-      Plotly.newPlot(wrap, ch.data, mergeLayout(ch.layout), plotCfg);
-      addChartSpotlight(wrap);
-    });
-  } else {
-    trendEl.innerHTML = emptyState('No trends found. Need a datetime column or 2+ numeric columns.');
+  if (name === 'trends') {
+    const container = document.getElementById('chart-trends');
+    container.innerHTML = '';
+    if (chartsData.trends?.length) {
+      chartsData.trends.forEach(ch => {
+        const wrap = makeChartWrap();
+        container.appendChild(wrap);
+        Plotly.newPlot(wrap.querySelector('.chart-plot'), ch.data, mergeLayout(ch.layout), plotCfg);
+        addSpotlight(wrap);
+      });
+    } else {
+      container.innerHTML = emptyState('No trends found. Need a datetime column or 2+ numeric columns.');
+    }
   }
 }
 
-function makeChartItem() {
-  const div = document.createElement('div');
-  div.className = 'chart-item fade-up';
-  div.style.position = 'relative';
-  div.style.overflow = 'hidden';
-  return div;
+function makeChartWrap() {
+  const outer = document.createElement('div');
+  outer.className = 'chart-item';          // no overflow:hidden, no fade-up
+  outer.style.position = 'relative';
+
+  const inner = document.createElement('div');
+  inner.className = 'chart-plot';
+  outer.appendChild(inner);
+
+  return outer;
 }
 
-function addChartSpotlight(el) {
+function addSpotlight(wrapEl) {
   const sp = document.createElement('div');
-  sp.style.cssText = 'position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity 300ms;border-radius:16px;';
-  el.appendChild(sp);
-  el.addEventListener('mousemove', e => {
-    const r = el.getBoundingClientRect();
-    sp.style.background = `radial-gradient(280px circle at ${e.clientX - r.left}px ${e.clientY - r.top}px, rgba(94,106,210,0.09), transparent 70%)`;
+  sp.className = 'chart-spotlight';
+  // inserted as first child so it sits beneath the Plotly SVG
+  wrapEl.insertBefore(sp, wrapEl.firstChild);
+
+  wrapEl.addEventListener('mousemove', e => {
+    const r = wrapEl.getBoundingClientRect();
+    sp.style.background =
+      `radial-gradient(280px circle at ${e.clientX - r.left}px ${e.clientY - r.top}px, rgba(94,106,210,0.09), transparent 70%)`;
     sp.style.opacity = '1';
   });
-  el.addEventListener('mouseleave', () => { sp.style.opacity = '0'; });
+  wrapEl.addEventListener('mouseleave', () => { sp.style.opacity = '0'; });
 }
 
 // ── Tabs ──
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t =>
+    t.classList.toggle('active', t.dataset.tab === name)
+  );
+  document.querySelectorAll('.tab-panel').forEach(p =>
+    p.classList.toggle('active', p.id === 'tab-' + name)
+  );
+}
+
 document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-    setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+    const name = btn.dataset.tab;
+    switchTab(name);
+    // Render tab content if not yet rendered, then resize existing charts
+    if (!tabRendered[name]) {
+      renderTab(name);
+    } else {
+      // Force Plotly to resize charts now that the panel is visible
+      document.querySelectorAll('#tab-' + name + ' .chart-plot, #tab-' + name + ' .chart-card').forEach(el => {
+        Plotly.Plots.resize(el);
+      });
+    }
   });
 });
 
@@ -203,7 +268,6 @@ function showLoading(on) {
 function showResults() {
   loading.classList.add('hidden');
   results.classList.remove('hidden');
-  // Trigger entrance animations for newly visible elements
   results.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
   results.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
